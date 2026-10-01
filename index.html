@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>掌机俄罗斯方块 · 旋转·暂停·音乐</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(145deg, #3a3f5e 0%, #1b1e2f 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        /* 掌机机身 */
+        .console {
+            background: #2e3440;
+            padding: 30px 35px 30px 35px;
+            border-radius: 45px 45px 65px 65px;
+            box-shadow: 
+                0 25px 35px rgba(0,0,0,0.7),
+                inset 0 -5px 10px rgba(0,0,0,0.5),
+                inset 0 5px 15px rgba(255,255,255,0.1);
+            border-bottom: 6px solid #1e222b;
+            position: relative;
+        }
+        /* 屏幕区域 + 暂停按钮容器 */
+        .screen-wrapper {
+            position: relative;
+        }
+        .screen {
+            background: #0b0d14;
+            border-radius: 20px;
+            padding: 20px 25px 25px 25px;
+            box-shadow: 
+                inset 0 0 0 3px #1e222b,
+                inset 0 0 30px #000000,
+                0 8px 0 #10131c;
+            display: flex;
+            gap: 25px;
+            align-items: flex-start;
+            transition: filter 0.2s;
+        }
+        .screen.paused {
+            filter: brightness(0.6) blur(1px);
+        }
+        /* 主游戏板 */
+        .play-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas#board {
+            background-color: #0e1018;
+            border-radius: 12px;
+            box-shadow: 
+                0 0 0 4px #2a2f3a,
+                0 0 0 6px #14171f;
+            display: block;
+            width: 300px;
+            height: 600px;
+        }
+        /* 右侧信息面板 */
+        .info-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 600px;
+            width: 130px;
+            gap: 20px;
+        }
+        .next-piece {
+            background: #0e1018;
+            border-radius: 12px;
+            padding: 15px 10px;
+            box-shadow: inset 0 0 0 3px #2a2f3a, inset 0 0 20px #000;
+            text-align: center;
+        }
+        .next-piece p {
+            margin: 0 0 12px 0;
+            color: #a9b7d4;
+            font-weight: bold;
+            letter-spacing: 3px;
+            font-size: 18px;
+            text-shadow: 0 2px 0 #1a1e28;
+        }
+        canvas#nextCanvas {
+            background-color: #0a0c12;
+            border-radius: 8px;
+            width: 100%;
+            height: auto;
+            box-shadow: inset 0 0 0 2px #2a2f3a;
+            display: block;
+            margin: 0 auto;
+        }
+        .score-box {
+            background: #0e1018;
+            border-radius: 12px;
+            padding: 12px 10px;
+            box-shadow: inset 0 0 0 3px #2a2f3a, inset 0 0 20px #000;
+            color: #d7e2ff;
+            font-weight: bold;
+            text-align: center;
+        }
+        .score-box div:first-child {
+            font-size: 15px;
+            letter-spacing: 3px;
+            color: #8d9fc7;
+            margin-bottom: 5px;
+        }
+        .score-box div:last-child {
+            font-size: 32px;
+            line-height: 1;
+            text-shadow: 0 0 8px #5f7fff;
+            font-family: 'Courier New', monospace;
+        }
+        /* 操作提示 */
+        .controls {
+            margin-top: 18px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px 15px;
+            color: #bbc9e6;
+            font-size: 13px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            text-shadow: 0 1px 0 #000;
+        }
+        .key {
+            background: #232834;
+            padding: 5px 12px;
+            border-radius: 30px;
+            box-shadow: inset 0 -2px 0 #0f1118, 0 3px 0 #0b0d12;
+            color: #d0dbff;
+            font-size: 14px;
+            display: inline-block;
+            margin: 0 2px;
+        }
+        .console-brand {
+            text-align: center;
+            margin-top: 10px;
+            color: #4a5370;
+            font-weight: bold;
+            font-size: 14px;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            text-shadow: 0 1px 0 #151a24;
+        }
+        /* 掌机底部装饰 */
+        .console::after {
+            content: "";
+            position: absolute;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70px;
+            height: 8px;
+            background: #1e222b;
+            border-radius: 10px;
+            box-shadow: inset 0 2px 3px #0f1118, 0 1px 0 #3f465b;
+        }
+        /* 暂停按钮 (浮在屏幕右上角) */
+        .pause-btn {
+            position: absolute;
+            top: 18px;
+            right: 22px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #232834;
+            border: none;
+            box-shadow: 0 5px 0 #0f1118, 0 8px 12px rgba(0,0,0,0.6);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.08s, box-shadow 0.15s;
+            z-index: 10;
+            color: #c0d0ff;
+            font-size: 26px;
+            line-height: 1;
+            padding: 0;
+        }
+        .pause-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 #0f1118, 0 5px 10px rgba(0,0,0,0.6);
+        }
+        .pause-btn:hover {
+            background: #2d3446;
+        }
+        /* 音乐开关小图标 (放置于暂停旁边，可点) */
+        .music-toggle {
+            position: absolute;
+            top: 18px;
+            right: 85px; /* 暂停按钮左侧 */
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #232834;
+            border: none;
+            box-shadow: 0 4px 0 #0f1118, 0 6px 10px rgba(0,0,0,0.5);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.08s, box-shadow 0.15s;
+            z-index: 10;
+            color: #b0c6ff;
+            font-size: 20px;
+            padding: 0;
+        }
+        .music-toggle:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #0f1118, 0 4px 8px rgba(0,0,0,0.5);
+        }
+        .music-toggle.muted {
+            color: #6a6f7e;
+            opacity: 0.7;
+        }
+        /* 暂停图标字符样式 */
+        .pause-icon {
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: -2px;
+            margin-left: 2px;
+        }
+        .play-icon {
+            font-size: 26px;
+            margin-left: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="console">
+        <div class="screen-wrapper">
+            <div class="screen" id="screenContainer">
+                <!-- 主游戏画布 -->
+                <div class="play-area">
+                    <canvas id="board" width="300" height="600"></canvas>
+                </div>
+                <!-- 右侧信息 -->
+                <div class="info-panel">
+                    <div class="next-piece">
+                        <p>▼ 下一个 ▼</p>
+                        <canvas id="nextCanvas" width="100" height="100"></canvas>
+                    </div>
+                    <div class="score-box">
+                        <div>分数</div>
+                        <div id="scoreDisplay">0</div>
+                    </div>
+                </div>
+            </div>
+            <!-- 暂停按钮 (可点击) -->
+            <button class="pause-btn" id="pauseBtn" title="暂停/继续 (点击)">
+                <span id="pauseIcon" class="pause-icon">⏸</span>
+            </button>
+            <!-- 背景音乐开关 -->
+            <button class="music-toggle" id="musicToggle" title="背景音乐 开/关">
+                <span id="musicIcon">🔊</span>
+            </button>
+        </div>
+        <!-- 操作提示 -->
+        <div class="controls">
+            <span><span class="key">←</span> <span class="key">→</span> 移动</span>
+            <span><span class="key">↓</span> 软降</span>
+            <span><span class="key">空格</span> 旋转</span>
+            <span><span class="key">F</span> 快速下降</span>
+            <span><span class="key">点击</span> 暂停/音乐</span>
+        </div>
+        <div class="console-brand">TETRIS POCKET</div>
+    </div>
+
+    <script>
+        (function() {
+            // ---------- 俄罗斯方块核心参数 ----------
+            const COLS = 10;
+            const ROWS = 20;
+            const BLOCK_SIZE = 30;      // 主画布格子像素
+            const NEXT_SIZE = 25;       // 预览画布格子像素 (100/4 = 25)
+
+            // 画布
+            const boardCanvas = document.getElementById('board');
+            const ctx = boardCanvas.getContext('2d');
+            const nextCanvas = document.getElementById('nextCanvas');
+            const nextCtx = nextCanvas.getContext('2d');
+            const scoreDisplay = document.getElementById('scoreDisplay');
+            const screenContainer = document.getElementById('screenContainer');
+            const pauseBtn = document.getElementById('pauseBtn');
+            const pauseIcon = document.getElementById('pauseIcon');
+            const musicToggle = document.getElementById('musicToggle');
+            const musicIcon = document.getElementById('musicIcon');
+
+            // ---------- 方块形状库 ----------
+            const SHAPES = [
+                [[1,1,1,1]],                   // I
+                [[1,1],[1,1]],                 // O
+                [[0,1,0],[1,1,1]],             // T
+                [[0,1,1],[1,1,0]],             // S
+                [[1,1,0],[0,1,1]],             // Z
+                [[1,0,0],[1,1,1]],             // L
+                [[0,0,1],[1,1,1]]              // J
+            ];
+
+            const COLORS = [
+                '#0e1018', '#00e5f0', '#f7e476', '#b484e0', 
+                '#6fcf97', '#f28b82', '#f7b26a', '#6a9cff'
+            ];
+
+            // ---------- 游戏状态 ----------
+            let board = [];
+            let currentPiece = null;
+            let nextPiece = null;
+            let score = 0;
+            let gameOver = false;
+            let paused = false;                 // 新增暂停状态
+            let fallInterval = null;
+            const BASE_INTERVAL = 500;
+
+            // ---------- 音频 (背景音乐) ----------
+            let audioCtx = null;
+            let musicGain = null;
+            let musicPlaying = true;            // 默认开启背景音乐
+            let musicLoopTimer = null;
+            let musicNotes = [];               // 存储音符频率
+            let noteIndex = 0;
+
+            // 简易的背景音乐旋律 (俄罗斯方块风格)
+            // 音符频率: C4=261.63, D4=293.66, E4=329.63, F4=349.23, G4=392, A4=440, B4=493.88
+            const MELODY = [
+                329.63, 493.88, 392.00, 440.00, 349.23, 329.63, 261.63, 329.63,
+                493.88, 392.00, 440.00, 349.23, 329.63, 261.63, 293.66, 329.63,
+                392.00, 440.00, 493.88, 392.00, 329.63, 293.66, 261.63, 261.63,
+                293.66, 329.63, 392.00, 440.00, 493.88, 392.00, 329.63, 293.66,
+                261.63, 261.63, 293.66, 329.63, 392.00, 440.00, 493.88, 392.00,
+                329.63, 293.66, 261.63, 293.66, 329.63, 261.63, 293.66, 329.63
+            ];
+
+            // 初始化音频环境 (在用户交互后)
+            function initAudio() {
+                if (audioCtx) return;
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    musicGain = audioCtx.createGain();
+                    musicGain.gain.value = 0.12;      // 背景音乐音量 (轻一点)
+                    musicGain.connect(audioCtx.destination);
+                    // 开始播放音乐循环
+                    startMusicLoop();
+                } catch (e) {
+                    console.warn('Web Audio API 不支持', e);
+                }
+            }
+
+            // 播放一个音符
+            function playNote(freq, duration = 0.22, time = null) {
+                if (!audioCtx || !musicGain || !musicPlaying) return;
+                const now = time || audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const noteGain = audioCtx.createGain();
+                osc.type = 'square';            // 方波，掌机风格
+                osc.frequency.value = freq;
+                noteGain.gain.value = 0.1;
+                noteGain.gain.setValueAtTime(0.1, now);
+                noteGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                osc.connect(noteGain);
+                noteGain.connect(musicGain);
+                osc.start(now);
+                osc.stop(now + duration + 0.05);
+            }
+
+            // 音乐循环调度
+            function startMusicLoop() {
+                if (musicLoopTimer) clearInterval(musicLoopTimer);
+                if (!audioCtx) return;
+
+                const noteDuration = 0.25; // 秒
+                let nextNoteTime = audioCtx.currentTime;
+
+                function scheduleNotes() {
+                    if (!audioCtx || !musicPlaying) return;
+                    // 提前调度未来0.5秒内要播放的音符
+                    while (nextNoteTime < audioCtx.currentTime + 0.5) {
+                        const freq = MELODY[noteIndex % MELODY.length];
+                        playNote(freq, 0.22, nextNoteTime);
+                        nextNoteTime += noteDuration;
+                        noteIndex = (noteIndex + 1) % MELODY.length;
+                    }
+                }
+
+                // 每200ms调度一次
+                musicLoopTimer = setInterval(() => {
+                    if (!paused && !gameOver && musicPlaying && audioCtx) {
+                        scheduleNotes();
+                    }
+                }, 200);
+            }
+
+            // 暂停/继续背景音乐 (对应暂停状态)
+            function setMusicPlaybackBasedOnState() {
+                // 该方法只是逻辑上，实际由 scheduleNotes 判断paused/gameOver/musicPlaying
+                // 但为了立即停止音符，可以不做额外处理。这里留空或调音量也可
+            }
+
+            // 切换音乐开关
+            function toggleMusic() {
+                if (!audioCtx) {
+                    initAudio(); // 首次点击初始化
+                    if (!audioCtx) return;
+                }
+                musicPlaying = !musicPlaying;
+                if (musicPlaying) {
+                    musicIcon.textContent = '🔊';
+                    musicToggle.classList.remove('muted');
+                    // 如果音乐播放器因暂停没在跑，尝试重新调度
+                    if (audioCtx && !musicLoopTimer) startMusicLoop();
+                } else {
+                    musicIcon.textContent = '🔇';
+                    musicToggle.classList.add('muted');
+                }
+            }
+
+            // ---------- 初始化游戏 ----------
+            function initBoard() {
+                board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            }
+
+            function createRandomPiece() {
+                const type = Math.floor(Math.random() * SHAPES.length);
+                const shape = SHAPES[type].map(row => row.slice());
+                const colorIdx = type + 1;
+                return { shape, colorIdx };
+            }
+
+            function spawnNewPiece() {
+                if (!nextPiece) {
+                    nextPiece = createRandomPiece();
+                }
+                currentPiece = {
+                    shape: nextPiece.shape.map(row => row.slice()),
+                    colorIdx: nextPiece.colorIdx,
+                    x: Math.floor((COLS - nextPiece.shape[0].length) / 2),
+                    y: 0
+                };
+                nextPiece = createRandomPiece();
+
+                if (collision(currentPiece.shape, currentPiece.x, currentPiece.y)) {
+                    gameOver = true;
+                    if (fallInterval) clearInterval(fallInterval);
+                    fallInterval = null;
+                    currentPiece = null;
+                }
+                renderAll();
+            }
+
+            // ---------- 碰撞检测 ----------
+            function collision(shape, offsetX, offsetY) {
+                for (let r = 0; r < shape.length; r++) {
+                    for (let c = 0; c < shape[0].length; c++) {
+                        if (shape[r][c] !== 0) {
+                            const boardX = offsetX + c;
+                            const boardY = offsetY + r;
+                            if (boardX < 0 || boardX >= COLS || boardY >= ROWS || boardY < 0) return true;
+                            if (boardY >= 0 && board[boardY][boardX] !== 0) return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            // ---------- 固定方块 ----------
+            function mergePiece() {
+                if (!currentPiece) return;
+                const { shape, colorIdx, x, y } = currentPiece;
+                for (let r = 0; r < shape.length; r++) {
+                    for (let c = 0; c < shape[0].length; c++) {
+                        if (shape[r][c] !== 0) {
+                            const boardX = x + c;
+                            const boardY = y + r;
+                            if (boardY >= 0 && boardY < ROWS && boardX >= 0 && boardX < COLS) {
+                                board[boardY][boardX] = colorIdx;
+                            }
+                        }
+                    }
+                }
+                clearFullRows();
+                spawnNewPiece();
+                renderAll();
+            }
+
+            function clearFullRows() {
+                let rowsCleared = 0;
+                for (let row = ROWS - 1; row >= 0; ) {
+                    let full = true;
+                    for (let col = 0; col < COLS; col++) {
+                        if (board[row][col] === 0) { full = false; break; }
+                    }
+                    if (full) {
+                        for (let r = row; r > 0; r--) {
+                            board[r] = board[r-1].slice();
+                        }
+                        board[0] = Array(COLS).fill(0);
+                        rowsCleared++;
+                    } else {
+                        row--;
+                    }
+                }
+                if (rowsCleared > 0) {
+                    const points = [0, 10, 30, 60, 100];
+                    score += points[rowsCleared] || 100;
+                    updateScore();
+                }
+            }
+
+            function updateScore() {
+                scoreDisplay.textContent = score;
+            }
+
+            // ---------- 移动操作 ----------
+            function movePiece(dx, dy) {
+                if (!currentPiece || gameOver || paused) return false;
+                const { shape, x, y } = currentPiece;
+                if (!collision(shape, x + dx, y + dy)) {
+                    currentPiece.x += dx;
+                    currentPiece.y += dy;
+                    renderAll();
+                    return true;
+                } else if (dy === 1) {
+                    mergePiece();
+                    renderAll();
+                }
+                return false;
+            }
+
+            // 旋转 (空格键) —— 已从A键更改
+            function rotatePiece() {
+                if (!currentPiece || gameOver || paused) return;
+                const oldShape = currentPiece.shape;
+                const rotated = oldShape[0].map((_, idx) => oldShape.map(row => row[idx]).reverse());
+                if (!collision(rotated, currentPiece.x, currentPiece.y)) {
+                    currentPiece.shape = rotated;
+                } else {
+                    if (!collision(rotated, currentPiece.x - 1, currentPiece.y)) {
+                        currentPiece.shape = rotated;
+                        currentPiece.x -= 1;
+                    } else if (!collision(rotated, currentPiece.x + 1, currentPiece.y)) {
+                        currentPiece.shape = rotated;
+                        currentPiece.x += 1;
+                    }
+                }
+                renderAll();
+            }
+
+            function hardDrop() {
+                if (!currentPiece || gameOver || paused) return;
+                while (!collision(currentPiece.shape, currentPiece.x, currentPiece.y + 1)) {
+                    currentPiece.y += 1;
+                }
+                mergePiece();
+                renderAll();
+            }
+
+            // ---------- 渲染 ----------
+            function renderBoard() {
+                ctx.clearRect(0, 0, 300, 600);
+                // 网格线
+                ctx.strokeStyle = '#2a2f3a';
+                ctx.lineWidth = 0.6;
+                for (let i = 0; i <= COLS; i++) {
+                    ctx.beginPath(); ctx.moveTo(i * BLOCK_SIZE, 0); ctx.lineTo(i * BLOCK_SIZE, 600); ctx.stroke();
+                }
+                for (let i = 0; i <= ROWS; i++) {
+                    ctx.beginPath(); ctx.moveTo(0, i * BLOCK_SIZE); ctx.lineTo(300, i * BLOCK_SIZE); ctx.stroke();
+                }
+                // 固定方块
+                for (let row = 0; row < ROWS; row++) {
+                    for (let col = 0; col < COLS; col++) {
+                        const val = board[row][col];
+                        if (val !== 0) {
+                            ctx.fillStyle = COLORS[val] || '#fff';
+                            ctx.shadowColor = COLORS[val] + 'aa';
+                            ctx.shadowBlur = 10;
+                            ctx.fillRect(col * BLOCK_SIZE + 1, row * BLOCK_SIZE + 1, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
+                            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                            ctx.fillRect(col * BLOCK_SIZE + 2, row * BLOCK_SIZE + 2, BLOCK_SIZE - 6, 4);
+                        }
+                    }
+                }
+                ctx.shadowBlur = 0;
+                // 当前方块
+                if (currentPiece && !gameOver) {
+                    const { shape, colorIdx, x, y } = currentPiece;
+                    for (let r = 0; r < shape.length; r++) {
+                        for (let c = 0; c < shape[0].length; c++) {
+                            if (shape[r][c] !== 0) {
+                                const boardX = x + c, boardY = y + r;
+                                if (boardY >= 0 && boardY < ROWS && boardX >= 0 && boardX < COLS) {
+                                    ctx.fillStyle = COLORS[colorIdx];
+                                    ctx.shadowColor = COLORS[colorIdx] + 'cc';
+                                    ctx.shadowBlur = 12;
+                                    ctx.fillRect(boardX * BLOCK_SIZE + 1, boardY * BLOCK_SIZE + 1, BLOCK_SIZE - 2, BLOCK_SIZE - 2);
+                                    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+                                    ctx.fillRect(boardX * BLOCK_SIZE + 2, boardY * BLOCK_SIZE + 2, BLOCK_SIZE - 6, 4);
+                                }
+                            }
+                        }
+                    }
+                    ctx.shadowBlur = 0;
+                }
+                // 游戏结束覆盖
+                if (gameOver) {
+                    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                    ctx.fillRect(0, 0, 300, 600);
+                    ctx.fillStyle = '#ffb4b4';
+                    ctx.font = 'bold 26px "Courier New", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.shadowColor = '#ff0000aa';
+                    ctx.shadowBlur = 15;
+                    ctx.fillText('GAME OVER', 150, 280);
+                    ctx.shadowBlur = 0;
+                    ctx.font = 'bold 16px "Courier New"';
+                    ctx.fillStyle = '#ccc';
+                    ctx.fillText('按 F 重新开始', 150, 360);
+                }
+                // 暂停覆盖 (视觉)
+                if (paused && !gameOver) {
+                    ctx.fillStyle = 'rgba(10,12,20,0.6)';
+                    ctx.fillRect(0, 0, 300, 600);
+                    ctx.font = 'bold 28px "Courier New"';
+                    ctx.fillStyle = '#b8c8ff';
+                    ctx.shadowColor = '#4f6fff';
+                    ctx.shadowBlur = 15;
+                    ctx.fillText('暂停', 150, 300);
+                    ctx.shadowBlur = 0;
+                }
+            }
+
+            function renderNext() {
+                nextCtx.clearRect(0, 0, 100, 100);
+                nextCtx.strokeStyle = '#232834';
+                nextCtx.lineWidth = 0.5;
+                for (let i = 0; i <= 4; i++) {
+                    nextCtx.beginPath(); nextCtx.moveTo(i * NEXT_SIZE, 0); nextCtx.lineTo(i * NEXT_SIZE, 100); nextCtx.stroke();
+                    nextCtx.beginPath(); nextCtx.moveTo(0, i * NEXT_SIZE); nextCtx.lineTo(100, i * NEXT_SIZE); nextCtx.stroke();
+                }
+                if (!nextPiece) return;
+                const { shape, colorIdx } = nextPiece;
+                const shapeCols = shape[0].length, shapeRows = shape.length;
+                const offsetX = (4 - shapeCols) * NEXT_SIZE / 2;
+                const offsetY = (4 - shapeRows) * NEXT_SIZE / 2;
+                for (let r = 0; r < shape.length; r++) {
+                    for (let c = 0; c < shape[0].length; c++) {
+                        if (shape[r][c] !== 0) {
+                            const x = offsetX + c * NEXT_SIZE, y = offsetY + r * NEXT_SIZE;
+                            nextCtx.fillStyle = COLORS[colorIdx];
+                            nextCtx.shadowColor = COLORS[colorIdx] + 'cc';
+                            nextCtx.shadowBlur = 10;
+                            nextCtx.fillRect(x + 1, y + 1, NEXT_SIZE - 2, NEXT_SIZE - 2);
+                            nextCtx.fillStyle = 'rgba(255,255,255,0.2)';
+                            nextCtx.fillRect(x + 2, y + 2, NEXT_SIZE - 6, 3);
+                        }
+                    }
+                }
+                nextCtx.shadowBlur = 0;
+            }
+
+            function renderAll() {
+                renderBoard();
+                renderNext();
+            }
+
+            // ---------- 暂停/继续 ----------
+            function togglePause() {
+                if (gameOver) return; // 游戏结束不能暂停
+                paused = !paused;
+                if (paused) {
+                    pauseIcon.textContent = '▶';
+                    pauseIcon.className = 'play-icon';
+                    screenContainer.classList.add('paused');
+                } else {
+                    pauseIcon.textContent = '⏸';
+                    pauseIcon.className = 'pause-icon';
+                    screenContainer.classList.remove('paused');
+                }
+                renderBoard(); // 重绘显示暂停遮罩
+            }
+
+            // ---------- 游戏开始/重置 ----------
+            function startGame() {
+                if (fallInterval) clearInterval(fallInterval);
+                initBoard();
+                score = 0;
+                updateScore();
+                gameOver = false;
+                paused = false;
+                pauseIcon.textContent = '⏸';
+                pauseIcon.className = 'pause-icon';
+                screenContainer.classList.remove('paused');
+                nextPiece = createRandomPiece();
+                spawnNewPiece();
+
+                fallInterval = setInterval(() => {
+                    if (!gameOver && !paused && currentPiece) {
+                        movePiece(0, 1);
+                    }
+                }, BASE_INTERVAL);
+                renderAll();
+            }
+
+            function resetGame() {
+                startGame();
+            }
+
+            // ---------- 键盘控制 (旋转改为空格) ----------
+            function handleKeyDown(e) {
+                const key = e.key;
+                // 阻止默认行为 (方向键、空格、F、A)
+                const preventKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'f', 'F', 'a', 'A'];
+                if (preventKeys.includes(key)) {
+                    e.preventDefault();
+                }
+
+                // 首次交互初始化音频 (用户按键时)
+                if (!audioCtx) {
+                    initAudio();
+                }
+
+                if (gameOver) {
+                    if (key === 'f' || key === 'F') {
+                        resetGame();
+                    }
+                    return;
+                }
+
+                // 空格旋转 (暂停时不能操作)
+                if (key === ' ') {
+                    if (!paused) rotatePiece();
+                    return;
+                }
+
+                // 暂停时不能进行游戏操作
+                if (paused) return;
+
+                switch (key) {
+                    case 'ArrowLeft':  movePiece(-1, 0); break;
+                    case 'ArrowRight': movePiece(1, 0); break;
+                    case 'ArrowDown':  movePiece(0, 1); break;
+                    // 移除A键和上键旋转, 旋转只在空格
+                    case 'f': case 'F': hardDrop(); break;
+                    default: return;
+                }
+                renderAll();
+            }
+
+            window.addEventListener('keydown', handleKeyDown);
+            window.addEventListener('keyup', (e) => {
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'a', 'A', 'f', 'F'].includes(e.key)) {
+                    e.preventDefault();
+                }
+            });
+
+            // ---------- 鼠标点击事件绑定 ----------
+            pauseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!audioCtx) initAudio(); // 顺便初始化音频
+                togglePause();
+            });
+
+            musicToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (!audioCtx) initAudio();
+                toggleMusic();
+            });
+
+            // 防止点击按钮时触发键盘焦点问题
+            pauseBtn.addEventListener('mousedown', (e) => e.preventDefault());
+            musicToggle.addEventListener('mousedown', (e) => e.preventDefault());
+
+            // ---------- 启动游戏 ----------
+            // 为了音乐能正常，第一次用户点击页面任意处初始化音频
+            document.body.addEventListener('click', function initOnFirstClick() {
+                if (!audioCtx) {
+                    initAudio();
+                }
+            }, { once: true });
+
+            // 启动游戏
+            startGame();
+
+            // 初始化时若想预加载音频，但浏览器限制必须用户交互，所以先留着
+        })();
+    </script>
+</body>
+</html>
